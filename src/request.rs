@@ -1,6 +1,3 @@
-#[cfg(feature = "http")]
-extern crate reqwest;
-
 use crate::error::{Error, RequestErrorKind};
 use crate::parser::parse_response;
 use crate::transport::Transport;
@@ -76,9 +73,36 @@ impl<'a> Request<'a> {
     ///
     /// [`call_url`]: #method.call_url
     /// [`Transport`]: trait.Transport.html
+    #[cfg(not(feature = "async"))]
     pub fn call<T: Transport>(&self, transport: T) -> Result<Value, Error> {
         let mut reader = transport
             .transmit(self)
+            .map_err(RequestErrorKind::TransportError)?;
+
+        let response = parse_response(&mut reader).map_err(RequestErrorKind::ParseError)?;
+
+        let value = response.map_err(RequestErrorKind::Fault)?;
+        Ok(value)
+    }
+
+    /// Performs the request using a [`Transport`].
+    ///
+    /// If you want to send the request using an HTTP POST request, you can also use [`call_url`],
+    /// which creates a suitable [`Transport`] internally.
+    ///
+    /// # Errors
+    ///
+    /// Any errors that occur while sending the request using the [`Transport`] will be returned to
+    /// the caller. Additionally, if the response is malformed (invalid XML), or indicates that the
+    /// method call failed, an error will also be returned.
+    ///
+    /// [`call_url`]: #method.call_url
+    /// [`Transport`]: trait.Transport.html
+    #[cfg(feature = "async")]
+    pub async fn call<T: Transport>(&self, transport: T) -> Result<Value, Error> {
+        let mut reader = transport
+            .transmit(self)
+            .await
             .map_err(RequestErrorKind::TransportError)?;
 
         let response = parse_response(&mut reader).map_err(RequestErrorKind::ParseError)?;
@@ -106,12 +130,39 @@ impl<'a> Request<'a> {
     ///
     /// [`Request::call`]: #method.call
     /// [`Transport`]: trait.Transport.html
-    #[cfg(feature = "http")]
+    #[cfg(all(feature = "http", not(feature = "async")))]
     pub fn call_url<U: reqwest::IntoUrl>(&self, url: U) -> Result<Value, Error> {
         // While we could implement `Transport` for `T: IntoUrl`, such an impl might not be
         // completely obvious (as it applies to `&str`), so I've added this method instead.
         // Might want to reconsider if someone has an objection.
         self.call(reqwest::blocking::Client::new().post(url))
+    }
+
+    /// Performs the request on a URL.
+    ///
+    /// You can pass a `&str` or an already parsed reqwest URL.
+    ///
+    /// This is a convenience method that will internally create a new `reqwest::Client` and send an
+    /// HTTP POST request to the given URL. If you only use this method to perform requests, you
+    /// don't need to depend on `reqwest` yourself.
+    ///
+    /// This method is only available when the `http` feature is enabled (this is the default).
+    ///
+    /// # Errors
+    ///
+    /// Since this is just a convenience wrapper around [`Request::call`], the same error conditions
+    /// apply.
+    ///
+    /// Any reqwest errors will be propagated to the caller.
+    ///
+    /// [`Request::call`]: #method.call
+    /// [`Transport`]: trait.Transport.html
+    #[cfg(all(feature = "http", feature = "async"))]
+    pub async fn call_url<U: reqwest::IntoUrl>(&self, url: U) -> Result<Value, Error> {
+        // While we could implement `Transport` for `T: IntoUrl`, such an impl might not be
+        // completely obvious (as it applies to `&str`), so I've added this method instead.
+        // Might want to reconsider if someone has an objection.
+        self.call(reqwest::Client::new().post(url)).await
     }
 
     /// Formats this `Request` as a UTF-8 encoded XML document.

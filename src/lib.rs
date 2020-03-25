@@ -9,12 +9,17 @@
 #![warn(rust_2018_idioms)]
 #![warn(missing_docs)]
 
+mod blocking_transport;
 mod error;
 mod parser;
 mod request;
+#[cfg(feature = "async")]
 mod transport;
 mod utils;
 mod value;
+
+#[cfg(not(feature = "async"))]
+use self::blocking_transport as transport;
 
 pub use error::{Error, Fault};
 pub use request::Request;
