@@ -1,11 +1,11 @@
 #[cfg(feature = "http")]
 extern crate reqwest;
 
-use error::{Error, RequestErrorKind};
-use parser::parse_response;
-use transport::Transport;
-use utils::escape_xml;
-use Value;
+use crate::error::{Error, RequestErrorKind};
+use crate::parser::parse_response;
+use crate::transport::Transport;
+use crate::utils::escape_xml;
+use crate::Value;
 
 use std::collections::BTreeMap;
 use std::io::{self, Write};

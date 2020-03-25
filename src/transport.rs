@@ -1,4 +1,4 @@
-use Request;
+use crate::Request;
 
 use std::error::Error;
 use std::io::Read;
@@ -62,13 +62,10 @@ pub trait Transport {
 /// [`Transport`]: ../trait.Transport.html
 #[cfg(feature = "http")]
 pub mod http {
-    extern crate mime;
-    extern crate reqwest;
-
-    use self::mime::Mime;
-    use self::reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, USER_AGENT};
-    use self::reqwest::blocking::RequestBuilder;
-    use {Request, Transport};
+    use crate::{Request, Transport};
+    use mime::Mime;
+    use reqwest::blocking::RequestBuilder;
+    use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, USER_AGENT};
 
     use std::error::Error;
     use std::str::FromStr;

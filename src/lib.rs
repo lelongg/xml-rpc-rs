@@ -9,10 +9,6 @@
 #![warn(rust_2018_idioms)]
 #![warn(missing_docs)]
 
-extern crate base64;
-extern crate iso8601;
-extern crate xml;
-
 mod error;
 mod parser;
 mod request;

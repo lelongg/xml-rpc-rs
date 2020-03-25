@@ -2,6 +2,7 @@
 authors = ["Jonas Schievink <jonasschievink@gmail.com>"]
 description = "An XML-RPC implementation for Rust"
 documentation = "https://docs.rs/xmlrpc/"
+edition = "2018"
 repository = "https://github.com/jonas-schievink/xml-rpc-rs.git"
 keywords = ["xml", "rpc", "remote", "ipc"]
 categories = ["network-programming", "encoding"]
