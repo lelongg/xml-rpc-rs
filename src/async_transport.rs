@@ -1,7 +1,7 @@
 use crate::Request;
-
 use std::error::Error;
 use std::io::Read;
+use async_trait::async_trait;
 
 /// Request and response transport abstraction.
 ///
@@ -18,6 +18,7 @@ use std::io::Read;
 ///
 /// [`Request::call`]: struct.Request.html#method.call
 /// [`Request`]: struct.Request.html
+#[async_trait(?Send)]
 pub trait Transport {
     // FIXME replace with `impl Trait` when stable
     /// The response stream returned by `transmit`.
@@ -35,7 +36,10 @@ pub trait Transport {
     /// return an appropriate [`Error`] to the caller.
     ///
     /// [`Error`]: struct.Error.html
-    fn transmit(self, request: &Request<'_>) -> Result<Self::Stream, Box<dyn Error + Send + Sync>>;
+    async fn transmit(
+        self,
+        request: &Request<'_>,
+    ) -> Result<Self::Stream, Box<dyn Error + Send + Sync>>;
 }
 
 // FIXME: Link to `Transport` and `RequestBuilder` using intra-rustdoc links. Relative links break
@@ -62,14 +66,15 @@ pub trait Transport {
 /// [`Transport`]: ../trait.Transport.html
 #[cfg(feature = "http")]
 pub mod http {
-    use super::Transport;
-    use crate::Request;
+    use crate::{Request, Transport};
+    use async_trait::async_trait;
     use mime::Mime;
-    use reqwest::blocking::RequestBuilder;
     use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, USER_AGENT};
+    use reqwest::RequestBuilder;
 
     use std::error::Error;
     use std::str::FromStr;
+    use std::io::Cursor;
 
     /// Appends all HTTP headers required by the XML-RPC specification to the `RequestBuilder`.
     ///
@@ -93,7 +98,7 @@ pub mod http {
     /// Checks that a reqwest `Response` has a status code indicating success and verifies certain
     /// headers.
     pub fn check_response(
-        response: &reqwest::blocking::Response,
+        response: &reqwest::Response,
     ) -> Result<(), Box<dyn Error + Send + Sync>> {
         // This is essentially an open-coded version of `Response::error_for_status` that does not
         // consume the response.
@@ -130,10 +135,11 @@ pub mod http {
     ///
     /// The request will be sent as specified in the XML-RPC specification: A default `User-Agent`
     /// will be set, along with the correct `Content-Type` and `Content-Length`.
+    #[async_trait(?Send)]
     impl Transport for RequestBuilder {
-        type Stream = reqwest::blocking::Response;
+        type Stream = Cursor<bytes::Bytes>;
 
-        fn transmit(
+        async fn transmit(
             self,
             request: &Request<'_>,
         ) -> Result<Self::Stream, Box<dyn Error + Send + Sync>> {
@@ -143,11 +149,14 @@ pub mod http {
             // and not doing anything else that could return an `Err` in `write_as_xml()`.
             request.write_as_xml(&mut body).unwrap();
 
-            let response = build_headers(self, body.len() as u64).body(body).send()?;
+            let response = build_headers(self, body.len() as u64)
+                .body(body)
+                .send()
+                .await?;
 
             check_response(&response)?;
 
-            Ok(response)
+            Ok(Cursor::new(response.bytes().await?))
         }
     }
 }
